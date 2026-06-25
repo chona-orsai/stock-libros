@@ -1,6 +1,6 @@
 "use client";
 
-import { ESTADOS, GENEROS } from "@/lib/constants";
+import type { CatalogOption } from "@/lib/types";
 import { Search } from "lucide-react";
 import { Select } from "../ui/select";
 
@@ -8,6 +8,8 @@ interface BookFiltersProps {
   busqueda: string;
   genero: string;
   estado: string;
+  generos: CatalogOption[];
+  estados: CatalogOption[];
   onBusquedaChange: (value: string) => void;
   onGeneroChange: (value: string) => void;
   onEstadoChange: (value: string) => void;
@@ -17,6 +19,8 @@ export function BookFilters({
   busqueda,
   genero,
   estado,
+  generos,
+  estados,
   onBusquedaChange,
   onGeneroChange,
   onEstadoChange,
@@ -39,7 +43,10 @@ export function BookFilters({
         onChange={(e) => onGeneroChange(e.target.value)}
         options={[
           { value: "", label: "Todos los géneros" },
-          ...GENEROS.map((g) => ({ value: g, label: g })),
+          ...generos.map((option) => ({
+            value: option.nombre,
+            label: option.nombre,
+          })),
         ]}
         className="sm:w-44"
       />
@@ -49,7 +56,10 @@ export function BookFilters({
         onChange={(e) => onEstadoChange(e.target.value)}
         options={[
           { value: "", label: "Todos los estados" },
-          ...ESTADOS.map((e) => ({ value: e, label: e })),
+          ...estados.map((option) => ({
+            value: option.nombre,
+            label: option.nombre,
+          })),
         ]}
         className="sm:w-44"
       />

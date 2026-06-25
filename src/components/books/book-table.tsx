@@ -6,12 +6,21 @@ import { BookRow } from "./book-row";
 
 interface BookTableProps {
   libros: Libro[];
+  generoColors: Record<string, string>;
+  estadoColors: Record<string, string>;
   onEdit: (libro: Libro) => void;
   onDelete: (libro: Libro) => void;
   onVenta: (libro: Libro) => void;
 }
 
-export function BookTable({ libros, onEdit, onDelete, onVenta }: BookTableProps) {
+export function BookTable({
+  libros,
+  generoColors,
+  estadoColors,
+  onEdit,
+  onDelete,
+  onVenta,
+}: BookTableProps) {
   if (libros.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white py-16 text-center">
@@ -44,6 +53,8 @@ export function BookTable({ libros, onEdit, onDelete, onVenta }: BookTableProps)
               <BookRow
                 key={libro.id}
                 libro={libro}
+                generoColors={generoColors}
+                estadoColors={estadoColors}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onVenta={onVenta}

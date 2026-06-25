@@ -1,6 +1,6 @@
 "use client";
 
-import { ESTADO_COLORS, GENERO_COLORS } from "@/lib/constants";
+import { getBadgeClass } from "@/lib/catalog-utils";
 import { formatCurrency } from "@/lib/stats";
 import type { Libro } from "@/lib/types";
 import { Minus, Pencil, Trash2 } from "lucide-react";
@@ -9,12 +9,21 @@ import { Button } from "../ui/button";
 
 interface BookRowProps {
   libro: Libro;
+  generoColors: Record<string, string>;
+  estadoColors: Record<string, string>;
   onEdit: (libro: Libro) => void;
   onDelete: (libro: Libro) => void;
   onVenta: (libro: Libro) => void;
 }
 
-export function BookRow({ libro, onEdit, onDelete, onVenta }: BookRowProps) {
+export function BookRow({
+  libro,
+  generoColors,
+  estadoColors,
+  onEdit,
+  onDelete,
+  onVenta,
+}: BookRowProps) {
   const sinStock = libro.stock === 0;
 
   return (
@@ -26,10 +35,14 @@ export function BookRow({ libro, onEdit, onDelete, onVenta }: BookRowProps) {
         </div>
       </td>
       <td className="px-4 py-3">
-        <Badge className={GENERO_COLORS[libro.genero]}>{libro.genero}</Badge>
+        <Badge className={getBadgeClass(generoColors, libro.genero)}>
+          {libro.genero}
+        </Badge>
       </td>
       <td className="px-4 py-3">
-        <Badge className={ESTADO_COLORS[libro.estado]}>{libro.estado}</Badge>
+        <Badge className={getBadgeClass(estadoColors, libro.estado)}>
+          {libro.estado}
+        </Badge>
       </td>
       <td className="px-4 py-3 text-center">
         <span

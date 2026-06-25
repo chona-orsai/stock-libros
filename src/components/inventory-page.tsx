@@ -4,36 +4,72 @@ import { BookFilters } from "@/components/books/book-filters";
 import { BookFormDialog } from "@/components/books/book-form-dialog";
 import { BookTable } from "@/components/books/book-table";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { DemoBanner } from "@/components/layout/demo-banner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
-import { MOCK_LIBROS } from "@/lib/mock-data";
+import { buildColorMap } from "@/lib/catalog-utils";
+import { calcularStats, filtrarLibros } from "@/lib/stats";
 import {
   createLibro,
   deleteLibro,
   decrementStock,
-  getDemoMode,
+  fetchLibros,
   updateLibro,
 } from "@/lib/supabase/books";
-import { calcularStats, filtrarLibros } from "@/lib/stats";
-import type { Libro, LibroFormData } from "@/lib/types";
+import { fetchCatalog } from "@/lib/supabase/catalog";
+import type { Autor, CatalogOption, Libro, LibroFormData } from "@/lib/types";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-export function InventoryPage() {
-  const isDemo = getDemoMode();
+interface InventoryPageProps {
+  userEmail?: string | null;
+  onSignedOut?: () => void;
+}
+
+export function InventoryPage({ userEmail, onSignedOut }: InventoryPageProps) {
   const [libros, setLibros] = useState<Libro[]>([]);
+  const [generos, setGeneros] = useState<CatalogOption[]>([]);
+  const [estados, setEstados] = useState<CatalogOption[]>([]);
+  const [autores, setAutores] = useState<Autor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [genero, setGenero] = useState("");
   const [estado, setEstado] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingLibro, setEditingLibro] = useState<Libro | null>(null);
 
-  useEffect(() => {
-    setLibros([...MOCK_LIBROS]);
-    setLoading(false);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [catalog, librosData] = await Promise.all([
+        fetchCatalog(),
+        fetchLibros(),
+      ]);
+
+      setGeneros(catalog.generos);
+      setEstados(catalog.estados);
+      setAutores(catalog.autores);
+      setLibros(librosData);
+    } catch (err) {
+      console.error("Error al cargar datos:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar los datos desde Supabase.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const generoColors = useMemo(() => buildColorMap(generos), [generos]);
+  const estadoColors = useMemo(() => buildColorMap(estados), [estados]);
 
   const librosFiltrados = useMemo(
     () => filtrarLibros(libros, busqueda, genero, estado),
@@ -54,98 +90,92 @@ export function InventoryPage() {
 
   const handleSave = useCallback(
     async (data: LibroFormData) => {
-      if (isDemo) {
-        if (editingLibro) {
-          setLibros((prev) =>
-            prev.map((l) =>
-              l.id === editingLibro.id ? { ...l, ...data } : l,
-            ),
-          );
-        } else {
-          setLibros((prev) => [
-            {
-              ...data,
-              id: Date.now(),
-              created_at: new Date().toISOString(),
-            },
-            ...prev,
-          ]);
-        }
-        return;
-      }
-
       try {
         if (editingLibro) {
           const updated = await updateLibro(editingLibro.id, data);
           setLibros((prev) =>
-            prev.map((l) => (l.id === updated.id ? updated : l)),
+            prev.map((libro) => (libro.id === updated.id ? updated : libro)),
           );
+          if (
+            data.autor_nombre &&
+            !autores.some((autor) => autor.id === updated.autor_id)
+          ) {
+            setAutores((prev) =>
+              [...prev, { id: updated.autor_id, nombre: updated.autor }].sort(
+                (a, b) => a.nombre.localeCompare(b.nombre, "es"),
+              ),
+            );
+          }
         } else {
           const created = await createLibro(data);
           setLibros((prev) => [created, ...prev]);
+          if (
+            data.autor_nombre &&
+            !autores.some((autor) => autor.id === created.autor_id)
+          ) {
+            setAutores((prev) =>
+              [...prev, { id: created.autor_id, nombre: created.autor }].sort(
+                (a, b) => a.nombre.localeCompare(b.nombre, "es"),
+              ),
+            );
+          }
         }
       } catch (err) {
         console.error("Error al guardar:", err);
+        setError(
+          err instanceof Error ? err.message : "No se pudo guardar el libro.",
+        );
       }
     },
-    [editingLibro, isDemo],
+    [editingLibro, autores],
   );
 
-  const handleDelete = useCallback(
-    async (libro: Libro) => {
-      const ok = window.confirm(
-        `¿Eliminar "${libro.titulo}" de ${libro.autor}? Esta acción no se puede deshacer.`,
+  const handleDelete = useCallback(async (libro: Libro) => {
+    const ok = window.confirm(
+      `¿Eliminar "${libro.titulo}" de ${libro.autor}? Esta acción no se puede deshacer.`,
+    );
+    if (!ok) return;
+
+    try {
+      await deleteLibro(libro.id);
+      setLibros((prev) => prev.filter((item) => item.id !== libro.id));
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar el libro.",
       );
-      if (!ok) return;
+    }
+  }, []);
 
-      if (isDemo) {
-        setLibros((prev) => prev.filter((l) => l.id !== libro.id));
-        return;
-      }
+  const handleVenta = useCallback(async (libro: Libro) => {
+    if (libro.stock <= 0) return;
 
-      try {
-        await deleteLibro(libro.id);
-        setLibros((prev) => prev.filter((l) => l.id !== libro.id));
-      } catch (err) {
-        console.error("Error al eliminar:", err);
-      }
-    },
-    [isDemo],
-  );
-
-  const handleVenta = useCallback(
-    async (libro: Libro) => {
-      if (libro.stock <= 0) return;
-
-      if (isDemo) {
-        setLibros((prev) =>
-          prev.map((l) =>
-            l.id === libro.id ? { ...l, stock: l.stock - 1 } : l,
-          ),
-        );
-        return;
-      }
-
-      try {
-        const newStock = await decrementStock(libro.id, libro.stock);
-        setLibros((prev) =>
-          prev.map((l) =>
-            l.id === libro.id ? { ...l, stock: newStock } : l,
-          ),
-        );
-      } catch (err) {
-        console.error("Error al registrar venta:", err);
-      }
-    },
-    [isDemo],
-  );
+    try {
+      const newStock = await decrementStock(libro.id, libro.stock);
+      setLibros((prev) =>
+        prev.map((item) =>
+          item.id === libro.id ? { ...item, stock: newStock } : item,
+        ),
+      );
+    } catch (err) {
+      console.error("Error al registrar venta:", err);
+      setError(
+        err instanceof Error ? err.message : "No se pudo registrar la venta.",
+      );
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-paper">
-      <Header />
-      {isDemo && <DemoBanner />}
+      <Header userEmail={userEmail} onSignedOut={onSignedOut} />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <StatsCards stats={stats} />
 
         <section className="space-y-4">
@@ -158,7 +188,7 @@ export function InventoryPage() {
                 {librosFiltrados.length} de {libros.length} títulos
               </p>
             </div>
-            <Button onClick={handleAdd}>
+            <Button onClick={handleAdd} disabled={loading || generos.length === 0}>
               <Plus className="h-4 w-4" />
               Agregar libro
             </Button>
@@ -168,6 +198,8 @@ export function InventoryPage() {
             busqueda={busqueda}
             genero={genero}
             estado={estado}
+            generos={generos}
+            estados={estados}
             onBusquedaChange={setBusqueda}
             onGeneroChange={setGenero}
             onEstadoChange={setEstado}
@@ -180,6 +212,8 @@ export function InventoryPage() {
           ) : (
             <BookTable
               libros={librosFiltrados}
+              generoColors={generoColors}
+              estadoColors={estadoColors}
               onEdit={handleEdit}
               onDelete={handleDelete}
               onVenta={handleVenta}
@@ -193,6 +227,9 @@ export function InventoryPage() {
         onClose={() => setFormOpen(false)}
         onSave={handleSave}
         libro={editingLibro}
+        generos={generos}
+        estados={estados}
+        autores={autores}
       />
     </div>
   );
