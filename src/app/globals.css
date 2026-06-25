@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-paper: #faf7f2;
+  --color-paper-dark: #f0ebe3;
+  --color-ink: #2c2416;
+  --color-ink-muted: #6b5d4d;
+  --color-accent: #8b4513;
+  --color-accent-light: #c4713a;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
